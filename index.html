@@ -2,7 +2,7 @@
 <html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
 
-<title>PA#1</title>
+<title>PA#2</title>
 <style>
     body {
         background-color: #EEEEEE;
@@ -23,25 +23,33 @@
 <p id="message">Drag your mouse on the cube to rotate it.<br>
 (On a touch screen, you can use your finger.)</p>
 
-
 <div id="controls">
     <h3>Контроль параметрів поверхні</h3>
-    
+
     <label for="pInput">Коефіцієнт p (Товщина трубки):</label>
-    <input type="number" id="pInput" value="0.1" step="0.01" min="0.01" oninput="updateSurface()"><br> 
+    <input type="range" id="pInput" min="0.01" max="0.5" value="0.1" step="0.01" oninput="updateSurface()">
+    <span id="pValue">0.1</span><br> 
     
     <label for="mInput">Коефіцієнт m (Загальний радіус спіралі):</label>
-    <input type="number" id="mInput" value="0.1" step="0.01" min="0.01" oninput="updateSurface()"><br>
+    <input type="range" id="mInput" min="0.01" max="0.5" value="0.1" step="0.01" oninput="updateSurface()">
+    <span id="mValue">0.1</span><br>
     
     <label for="uMaxInput">U Max (Довжина спіралі):</label>
-    <input type="number" id="uMaxInput" value="12.57" step="0.1" min="1" oninput="updateSurface()"><br>
+    <input type="range" id="uMaxInput" min="3.14" max="25.13" value="12.57" step="0.1" oninput="updateSurface()">
+    <span id="uMaxValue">12.57</span><br> 
     
-    <label for="vMaxInput">V Max (&pi; множник):</label>
-    <input type="number" id="vMaxInput" value="2" step="0.1" min="0.1" oninput="updateSurface()"><br>
-    
-    <label for="vSegmentsInput">Кількість U/V-сегментів (Деталізація):</label>
-    <input type="number" id="vSegmentsInput" value="50" step="1" min="10" oninput="updateSurface()"><br>
+    <label for="vMaxInput">V Max (π множник):</label>
+    <input type="range" id="vMaxInput" min="0.5" max="4" value="2" step="0.1" oninput="updateSurface()">
+    <span id="vMaxValue">2</span><br>
+    <h4>Контроль гранулярності (деталізації)</h4>
 
+    <label for="numUSlider">Гранулярність U:</label>
+    <input type="range" id="numUSlider" min="10" max="100" value="50" step="1" oninput="updateGranularity('U')">
+    <span id="numUValue">50</span><br>
+
+    <label for="numVSlider">Гранулярність V:</label>
+    <input type="range" id="numVSlider" min="10" max="100" value="50" step="1" oninput="updateGranularity('V')">
+    <span id="numVValue">50</span><br>
 </div>
 
 <div id="canvas-holder">

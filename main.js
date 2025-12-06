@@ -5,7 +5,22 @@ let surface;                    // A surface model
 let shProgram;                  // A shader program
 let spaceball;                  // A SimpleRotator object that lets the user rotate the view by mouse.
 let updateTimeout;
-
+/**
+ (перетворення точки)
+ @param {Array<number>} m 
+ @param {Array<number>} v 
+ @returns {Array<number>} 
+ */
+function m4MultiplyVector(m, v) {
+    let result = new Array(4);
+    
+    result[0] = m[0]*v[0] + m[4]*v[1] + m[8]*v[2]  + m[12]*v[3]; // X
+    result[1] = m[1]*v[0] + m[5]*v[1] + m[9]*v[2]  + m[13]*v[3]; // Y
+    result[2] = m[2]*v[0] + m[6]*v[1] + m[10]*v[2] + m[14]*v[3]; // Z
+    result[3] = m[3]*v[0] + m[7]*v[1] + m[11]*v[2] + m[15]*v[3]; // W
+    
+    return result;
+}
 function deg2rad(angle) {
     return angle * Math.PI / 180;
 }
@@ -60,37 +75,60 @@ function ShaderProgram(name, program) {
  * way to draw with WebGL.  Here, the geometry is so simple that it doesn't matter.)
  */
 function draw() { 
-    gl.clearColor(0,0,0,1);
+    gl.clearColor(0.0, 0.0, 0.0, 1.0);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     
-    /* Set the values of the projection transformation */
-    let projection = m4.perspective(Math.PI/8, 1, 0.01, 1000);
+    // 1. Обчислення Матриць Перетворення 
     
-    /* Get the view matrix from the SimpleRotator object.*/
-    let modelView = spaceball.getViewMatrix();
+    // 1a. View Matrix (від Trackball Rotator)
+    let viewMatrix = spaceball.getViewMatrix(); 
+    console.log("View Matrix:", viewMatrix);
+ 
+    // 1b. Model Matrix 
+    let translateToPointZero = m4.translation(0, 0, 0);
 
-    let rotateToPointZero = m4.axisRotation([0.707,0.707,0], 0.7);
-    let translateToPointZero = m4.translation(0,0,-200);
-
-    let matAccum0 = m4.multiply(rotateToPointZero, modelView );
-    let matAccum1 = m4.multiply(translateToPointZero, matAccum0 );
+    let modelMatrix = translateToPointZero; 
+ 
+    // 1c. ModelView Matrix (View * Model)
+    let modelViewMatrix = m4.multiply(viewMatrix, modelMatrix);
     
-    /* Multiply the projection matrix times the modelview matrix to give the
-       combined transformation matrix, and send that to the shader program. */
-    let modelViewProjection = m4.multiply(projection, matAccum1 ); 
+    // 1d. Projection Matrix 
+    let projectionMatrix = m4.perspective(Math.PI / 8, 1, 0.01, 1000); 
 
-    gl.uniformMatrix4fv(shProgram.iModelViewProjectionMatrix, false, modelViewProjection );
-    // Параметри малювання
-    const numU = 50;  
-    const numV = 50; 
+    // 1e. Normal Matrix обернена транспонована ModelView
+    let normalMatrix = m4.transpose(m4.inverse(modelViewMatrix));
+    
+    // 2. Розрахунок Позиції Світла
+    
+    let time = performance.now() * 0.0005; 
+    let lightRadius = 150.0;
+    let lightHeight = 50.0; 
+    let lightX = lightRadius * Math.cos(time); 
+    let lightZ = lightRadius * Math.sin(time);
 
-    // 1. U-криві
-    gl.uniform4fv(shProgram.iColor, [1, 1, 0, 1]); 
-    surface.Draw(numU, numV);
+    // 2a. Позиція світла 
+    let lightPositionWorld = [lightX, lightHeight, lightZ, 1.0]; 
+    
+    // 2b. Позиція світла (View Space = ViewMatrix * WorldPosition)
+    let lightPositionView = m4MultiplyVector(viewMatrix, lightPositionWorld);
+    
+    // --- 3. Передача Уніформ до GPU ---
+    
+    // Матриці
+    gl.uniformMatrix4fv(shProgram.iModelViewMatrix, false, modelViewMatrix);
+    gl.uniformMatrix4fv(shProgram.iProjectionMatrix, false, projectionMatrix);
+    gl.uniformMatrix4fv(shProgram.iNormalMatrix, false, normalMatrix);
 
-    // 2. V-криві
-    gl.uniform4fv(shProgram.iColor, [0, 0, 1, 1]); 
-    surface.Draw(numU, numV);
+    // Параметри освітлення 
+    gl.uniform4fv(shProgram.iLightPosition, lightPositionView);
+    gl.uniform4f(shProgram.iAmbientColor, 0.1, 0.1, 0.1, 1.0); 
+    gl.uniform4f(shProgram.iDiffuseColor, 0.0, 0.5, 0.8, 1.0); 
+    gl.uniform4f(shProgram.iSpecularColor, 1.0, 1.0, 1.0, 1.0);
+    gl.uniform1f(shProgram.iShininess, 50.0); 
+    
+    surface.Draw();
+    
+    window.requestAnimationFrame(draw); 
 }
 
 function CreateSurfaceData()
@@ -110,26 +148,28 @@ function CreateSurfaceData()
 function initGL() {
     let prog = createProgram( gl, vertexShaderSource, fragmentShaderSource );
 
-    shProgram = new ShaderProgram('Basic', prog);
+    shProgram = new ShaderProgram('PhongShading', prog);
     shProgram.Use();
 
-    shProgram.iAttribVertex = gl.getAttribLocation(prog, "vertex");
-    shProgram.iModelViewProjectionMatrix = gl.getUniformLocation(prog, "ModelViewProjectionMatrix");
-    shProgram.iColor = gl.getUniformLocation(prog, "color");
+    shProgram.iAttribVertex     = gl.getAttribLocation(prog, "vertex");
+    shProgram.iAttribNormal     = gl.getAttribLocation(prog, "normal"); 
 
-    if (shProgram.iAttribVertex === -1) {
-        console.error("Помилка: Атрибут 'vertex' не знайдено!");
-    }
-    if (shProgram.iModelViewProjectionMatrix === -1) {
-        console.error("Помилка: Уніформа 'ModelViewProjectionMatrix' не знайдена!");
-    }
-    let variantNumber = 23;
-    shProgram.iColor = gl.getUniformLocation(prog, "color");
+    // Матриці
+    shProgram.iModelViewMatrix  = gl.getUniformLocation(prog, "ModelViewMatrix");
+    shProgram.iProjectionMatrix = gl.getUniformLocation(prog, "ProjectionMatrix");
+    shProgram.iNormalMatrix     = gl.getUniformLocation(prog, "NormalMatrix");
 
+    // Освітлення та матеріал
+    shProgram.iLightPosition    = gl.getUniformLocation(prog, "LightPosition");
+    shProgram.iAmbientColor     = gl.getUniformLocation(prog, "AmbientColor");
+    shProgram.iDiffuseColor     = gl.getUniformLocation(prog, "DiffuseColor");
+    shProgram.iSpecularColor    = gl.getUniformLocation(prog, "SpecularColor");
+    shProgram.iShininess        = gl.getUniformLocation(prog, "Shininess");
+    
     surface = new SurfaceModel(gl, shProgram);
     surface.initBuffers();
 
-    gl.enable(gl.DEPTH_TEST);   
+    gl.enable(gl.DEPTH_TEST); 
 }
 
 
@@ -164,25 +204,55 @@ function createProgram(gl, vShader, fShader) {
     return prog;
 }
 
+function updateGranularity(axis) {
+    let slider = document.getElementById(`num${axis}Slider`);
+    let value = parseInt(slider.value);
+    document.getElementById(`num${axis}Value`).textContent = value;
+    
+    if (surface) {
+        if (axis === 'U') {
+            surface.numU = value;
+        } else if (axis === 'V') {
+            surface.numV = value;
+        }
+        
+        surface.initBuffers(); 
+        draw(); 
+    }
+}
+
 function updateSurface() {
     clearTimeout(updateTimeout);
 
     updateTimeout = setTimeout(() => {
+        // Коефіцієнт p
         let p = parseFloat(document.getElementById("pInput").value);
-        let m = parseFloat(document.getElementById("mInput").value); // Читаємо m
-        let uMax = parseFloat(document.getElementById("uMaxInput").value);
-        let vMaxFactor = parseFloat(document.getElementById("vMaxInput").value);
-        let numSegments = parseInt(document.getElementById("vSegmentsInput").value);
+        document.getElementById("pValue").textContent = p.toFixed(2); 
+        
+        // Коефіцієнт m
+        let m = parseFloat(document.getElementById("mInput").value);
+        document.getElementById("mValue").textContent = m.toFixed(2);
 
-        if (surface && !isNaN(p) && !isNaN(m) /* ... (решта перевірок) ... */) {
+        // U Max
+        let uMax = parseFloat(document.getElementById("uMaxInput").value);
+        document.getElementById("uMaxValue").textContent = uMax.toFixed(2);
+        
+        // V Max
+        let vMaxFactor = parseFloat(document.getElementById("vMaxInput").value);
+        document.getElementById("vMaxValue").textContent = vMaxFactor.toFixed(1);
+        
+        if (surface && !isNaN(p) && !isNaN(m) && !isNaN(uMax) && !isNaN(vMaxFactor)) {
             
-            // !!! ПЕРЕДАЄМО p та m !!!
-            surface.setParameters(p, m, uMax, vMaxFactor, numSegments);
+
+            surface.setParameters(p, m, uMax, vMaxFactor);
+
+            surface.numU = parseInt(document.getElementById("numUSlider").value);
+            surface.numV = parseInt(document.getElementById("numVSlider").value);
             
             surface.initBuffers();
             draw();
         } 
-    }, 100);
+    }, 100); 
 }
 /**
  * initialization function that will be called when the page has loaded
@@ -210,7 +280,7 @@ function init() {
         return;
     }
 
-    spaceball = new TrackballRotator(canvas, draw, 0);
+    spaceball = new TrackballRotator(canvas, null, 100);
 
-    draw();
+    window.requestAnimationFrame(draw);
 }

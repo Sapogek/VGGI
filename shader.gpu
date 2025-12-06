@@ -1,24 +1,67 @@
 
-
-// Vertex shader
+// 1. ВЕРШИННИЙ ШЕЙДЕР
 const vertexShaderSource = `
 attribute vec3 vertex;
-uniform mat4 ModelViewProjectionMatrix;
+attribute vec3 normal; 
+
+// Уніформи для матриць
+uniform mat4 ModelViewMatrix;
+uniform mat4 ProjectionMatrix;
+uniform mat4 NormalMatrix; 
+
+varying vec3 vNormal;   
+varying vec4 vPosition; 
 
 void main() {
-    gl_Position = ModelViewProjectionMatrix * vec4(vertex,1.0);
-}`;
+    // 1. Позиція вершини у просторі виду
+    vPosition = ModelViewMatrix * vec4(vertex, 1.0); 
+    
+    // 2. Нормаль у просторі виду
+    vNormal = normalize(vec3(NormalMatrix * vec4(normal, 0.0)));
+    
+    // 3. Фінальна позиція на екрані
+    gl_Position = ProjectionMatrix * vPosition;
+}
+`;
 
-
-// Fragment shader
+// 2. ФРАГМЕНТНИЙ ШЕЙДЕР
 const fragmentShaderSource = `
-#ifdef GL_FRAGMENT_PRECISION_HIGH
-   precision highp float;
-#else
-   precision mediump float;
-#endif
+precision highp float;
 
-uniform vec4 color;
+// Уніформи для світла та матеріалу
+uniform vec4 LightPosition; 
+uniform vec4 AmbientColor; 
+uniform vec4 DiffuseColor;
+uniform vec4 SpecularColor;
+uniform float Shininess;   
+
+// Змінні, інтерпольовані з 1 шейдера
+varying vec3 vNormal;
+varying vec4 vPosition;
+
 void main() {
-    gl_FragColor = color;
-}`;
+    vec3 N = normalize(vNormal); 
+    
+    // Вектор світла
+    vec3 L = normalize(vec3(LightPosition - vPosition)); 
+    
+    // Вектор до глядача
+    vec3 V = normalize(-vPosition.xyz); 
+    
+    // Ambient
+    vec4 ambient = AmbientColor; 
+    
+    // Diffuse (Ламберт)
+    float NdotL = max(dot(N, L), 0.0);
+    vec4 diffuse = DiffuseColor * NdotL;
+    
+    // Specular (Фонг)
+    vec3 R = reflect(-L, N); 
+    float RdotV = max(dot(R, V), 0.0);
+    float specFactor = pow(RdotV, Shininess);
+    vec4 specular = SpecularColor * specFactor;
+
+    // Ambient + Diffuse + Specular
+    gl_FragColor = ambient + diffuse + specular;
+}
+`;

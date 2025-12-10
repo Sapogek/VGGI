@@ -1,67 +1,81 @@
 
-// 1. ВЕРШИННИЙ ШЕЙДЕР
+
 const vertexShaderSource = `
 attribute vec3 vertex;
 attribute vec3 normal; 
+attribute vec2 texCoord;
+attribute vec3 tangent;
+attribute vec3 bitangent;
 
-// Уніформи для матриць
 uniform mat4 ModelViewMatrix;
 uniform mat4 ProjectionMatrix;
 uniform mat4 NormalMatrix; 
 
 varying vec3 vNormal;   
 varying vec4 vPosition; 
+varying vec2 vTexCoord;
+varying vec3 vTangent;
+varying vec3 vBitangent;
 
 void main() {
-    // 1. Позиція вершини у просторі виду
     vPosition = ModelViewMatrix * vec4(vertex, 1.0); 
     
-    // 2. Нормаль у просторі виду
     vNormal = normalize(vec3(NormalMatrix * vec4(normal, 0.0)));
+    vTangent = normalize(vec3(NormalMatrix * vec4(tangent, 0.0)));
+    vBitangent = normalize(vec3(NormalMatrix * vec4(bitangent, 0.0)));
     
-    // 3. Фінальна позиція на екрані
+    vTexCoord = texCoord;
+    
     gl_Position = ProjectionMatrix * vPosition;
 }
 `;
 
-// 2. ФРАГМЕНТНИЙ ШЕЙДЕР
 const fragmentShaderSource = `
 precision highp float;
 
-// Уніформи для світла та матеріалу
 uniform vec4 LightPosition; 
 uniform vec4 AmbientColor; 
 uniform vec4 DiffuseColor;
 uniform vec4 SpecularColor;
 uniform float Shininess;   
 
-// Змінні, інтерпольовані з 1 шейдера
+uniform sampler2D diffuseTexture;
+uniform sampler2D specularTexture;
+uniform sampler2D normalTexture;
+
 varying vec3 vNormal;
 varying vec4 vPosition;
+varying vec2 vTexCoord;
+varying vec3 vTangent;
+varying vec3 vBitangent;
 
 void main() {
-    vec3 N = normalize(vNormal); 
+    vec4 diffuseColor = texture2D(diffuseTexture, vTexCoord);
+    vec4 specularColor = texture2D(specularTexture, vTexCoord);
+    vec3 normalMap = texture2D(normalTexture, vTexCoord).rgb;
     
-    // Вектор світла
+    normalMap = normalMap * 2.0 - 1.0;
+    
+    mat3 TBN = mat3(
+        normalize(vTangent),
+        normalize(vBitangent),
+        normalize(vNormal)
+    );
+    
+    vec3 N = normalize(TBN * normalMap);
     vec3 L = normalize(vec3(LightPosition - vPosition)); 
-    
-    // Вектор до глядача
     vec3 V = normalize(-vPosition.xyz); 
     
-    // Ambient
-    vec4 ambient = AmbientColor; 
+    vec4 ambient = AmbientColor * diffuseColor; 
     
-    // Diffuse (Ламберт)
     float NdotL = max(dot(N, L), 0.0);
-    vec4 diffuse = DiffuseColor * NdotL;
+    vec4 diffuse = DiffuseColor * diffuseColor * NdotL;
     
-    // Specular (Фонг)
     vec3 R = reflect(-L, N); 
     float RdotV = max(dot(R, V), 0.0);
     float specFactor = pow(RdotV, Shininess);
-    vec4 specular = SpecularColor * specFactor;
+    vec4 specular = SpecularColor * specularColor * specFactor;
 
-    // Ambient + Diffuse + Specular
     gl_FragColor = ambient + diffuse + specular;
 }
 `;

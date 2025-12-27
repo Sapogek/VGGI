@@ -1,5 +1,3 @@
-
-
 const vertexShaderSource = `
 attribute vec3 vertex;
 attribute vec3 normal; 
@@ -19,13 +17,10 @@ varying vec3 vBitangent;
 
 void main() {
     vPosition = ModelViewMatrix * vec4(vertex, 1.0); 
-    
     vNormal = normalize(vec3(NormalMatrix * vec4(normal, 0.0)));
     vTangent = normalize(vec3(NormalMatrix * vec4(tangent, 0.0)));
     vBitangent = normalize(vec3(NormalMatrix * vec4(bitangent, 0.0)));
-    
     vTexCoord = texCoord;
-    
     gl_Position = ProjectionMatrix * vPosition;
 }
 `;
@@ -43,6 +38,9 @@ uniform sampler2D diffuseTexture;
 uniform sampler2D specularTexture;
 uniform sampler2D normalTexture;
 
+uniform vec2 uScaleCenter;
+uniform float uScaleFactor;
+
 varying vec3 vNormal;
 varying vec4 vPosition;
 varying vec2 vTexCoord;
@@ -50,9 +48,12 @@ varying vec3 vTangent;
 varying vec3 vBitangent;
 
 void main() {
-    vec4 diffuseColor = texture2D(diffuseTexture, vTexCoord);
-    vec4 specularColor = texture2D(specularTexture, vTexCoord);
-    vec3 normalMap = texture2D(normalTexture, vTexCoord).rgb;
+    
+    vec2 scaledUV = (vTexCoord - uScaleCenter) * uScaleFactor + uScaleCenter;
+
+    vec4 diffuseColor = texture2D(diffuseTexture, scaledUV);
+    vec4 specularColor = texture2D(specularTexture, scaledUV);
+    vec3 normalMap = texture2D(normalTexture, scaledUV).rgb;
     
     normalMap = normalMap * 2.0 - 1.0;
     
@@ -67,7 +68,6 @@ void main() {
     vec3 V = normalize(-vPosition.xyz); 
     
     vec4 ambient = AmbientColor * diffuseColor; 
-    
     float NdotL = max(dot(N, L), 0.0);
     vec4 diffuse = DiffuseColor * diffuseColor * NdotL;
     
@@ -76,6 +76,12 @@ void main() {
     float specFactor = pow(RdotV, Shininess);
     vec4 specular = SpecularColor * specularColor * specFactor;
 
-    gl_FragColor = ambient + diffuse + specular;
+    vec4 finalColor = ambient + diffuse + specular;
+    float dist = distance(vTexCoord, uScaleCenter);
+    if (dist < 0.015) {
+        finalColor = vec4(1.0, 0.0, 0.0, 1.0);
+    }
+
+    gl_FragColor = finalColor;
 }
 `;

@@ -6,10 +6,12 @@ let shProgram;
 let spaceball;
 let updateTimeout;
 
-// Текстурні об'єкти
 let diffuseTexture;
 let specularTexture;
 let normalTexture;
+
+let scaleCenter = { u: 0.5, v: 0.5 };
+let scaleFactor = 1.0;
 
 function m4MultiplyVector(m, v) {
     let result = new Array(4);
@@ -46,6 +48,9 @@ function ShaderProgram(name, program) {
     this.iSpecularTexture = -1;
     this.iNormalTexture = -1;
 
+    this.iScaleCenter = -1;
+    this.iScaleFactor = -1;
+
     this.Use = function() {
         gl.useProgram(this.prog);
     }
@@ -78,6 +83,9 @@ function draw() {
     gl.uniform4f(shProgram.iDiffuseColor, 1.5, 1.5, 1.5, 1.0);
     gl.uniform4f(shProgram.iSpecularColor, 1.8, 1.8, 1.8, 1.0); 
     gl.uniform1f(shProgram.iShininess, 50.0); 
+
+    gl.uniform2f(shProgram.iScaleCenter, scaleCenter.u, scaleCenter.v);
+    gl.uniform1f(shProgram.iScaleFactor, scaleFactor);
     
     // Зв'язування текстур
     gl.activeTexture(gl.TEXTURE0);
@@ -117,6 +125,46 @@ function loadTexture(url, callback) {
     return texture;
 }
 
+function handleKeyDown(event) {
+    const step = 0.01;
+    let changed = false;
+
+    switch(event.code) {
+        case 'KeyW': 
+            scaleCenter.v = Math.min(scaleCenter.v + step, 1.0); 
+            changed = true; 
+            break;
+        case 'KeyS': 
+            scaleCenter.v = Math.max(scaleCenter.v - step, 0.0); 
+            changed = true; 
+            break;
+        case 'KeyA': 
+            scaleCenter.u = Math.max(scaleCenter.u - step, 0.0); 
+            changed = true; 
+            break;
+        case 'KeyD': 
+            scaleCenter.u = Math.min(scaleCenter.u + step, 1.0); 
+            changed = true; 
+            break;
+
+        case 'KeyQ': 
+            scaleFactor *= 0.95; 
+            changed = true; 
+            break; 
+        case 'KeyE': 
+            scaleFactor *= 1.05; 
+            changed = true; 
+            break;
+    }
+
+    if (changed) {
+        document.getElementById("uvCoords").textContent = 
+            `[${scaleCenter.u.toFixed(2)}; ${scaleCenter.v.toFixed(2)}]`;
+        document.getElementById("scaleVal").textContent = 
+            (1.0 / scaleFactor).toFixed(2);
+    }
+}
+
 function initGL() {
     let prog = createProgram(gl, vertexShaderSource, fragmentShaderSource);
 
@@ -142,6 +190,9 @@ function initGL() {
     shProgram.iSpecularTexture = gl.getUniformLocation(prog, "specularTexture");
     shProgram.iNormalTexture = gl.getUniformLocation(prog, "normalTexture");
     
+    shProgram.iScaleCenter = gl.getUniformLocation(prog, "uScaleCenter");
+    shProgram.iScaleFactor = gl.getUniformLocation(prog, "uScaleFactor");
+
     surface = new SurfaceModel(gl, shProgram);
     surface.initBuffers();
 
@@ -236,5 +287,6 @@ function init() {
     }
 
     spaceball = new TrackballRotator(canvas, null, 100);
+    window.addEventListener('keydown', handleKeyDown);
     window.requestAnimationFrame(draw);
 }

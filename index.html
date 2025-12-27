@@ -2,7 +2,7 @@
 <html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
 
-<title>PA#2</title>
+<title>CGW</title>
 <style>
     body {
         background-color: #EEEEEE;
@@ -50,6 +50,11 @@
     <label for="numVSlider">Гранулярність V:</label>
     <input type="range" id="numVSlider" min="10" max="100" value="50" step="1" oninput="updateGranularity('V')">
     <span id="numVValue">50</span><br>
+
+    <h4>Поточні параметри текстури</h4>
+    Центр (U, V): <span id="uvCoords">[0.50; 0.50]</span><br>
+    Масштаб: <span id="scaleVal">1.00</span>x
+    
 </div>
 
 <div id="canvas-holder">

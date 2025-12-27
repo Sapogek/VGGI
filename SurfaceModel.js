@@ -106,7 +106,7 @@ function SurfaceModel(gl, shProgram) {
             let dPdu = this.SurfaceDerivativeU(u, v);
             let dPdv = this.SurfaceDerivativeV(u, v);
             
-            // Тангентаголовний вектор. Фіксуємо напрямок.
+            // Тангента головний вектор. Фіксуємо напрямок.
             let T = [...dPdu];
             m4.normalize(T, T);
             
@@ -115,7 +115,6 @@ function SurfaceModel(gl, shProgram) {
             m4.normalize(rawN, rawN);
             
             // Формула: N' = normalize(N - (T · N) * T)
-            // Це робить нормаль строго перпендикулярною до нашої пріоритетної тангенти
             let dotTN = T[0] * rawN[0] + T[1] * rawN[1] + T[2] * rawN[2];
             let N = [
                 rawN[0] - dotTN * T[0],

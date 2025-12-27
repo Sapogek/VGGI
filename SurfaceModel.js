@@ -78,94 +78,96 @@ function SurfaceModel(gl, shProgram) {
     }
 
     this.GenerateSurfaceAndNormals = function() {
-        let vertices = [];
-        let normals = [];
-        let texCoords = [];
-        let tangents = [];
-        let bitangents = [];
-        let indices = [];
-        
-        let uStep = (this.uMax - this.uMin) / this.numU;
-        let vStep = (this.vMax - this.vMin) / this.numV;
-        
-        for (let i = 0; i <= this.numU; i++) {
-            let u = this.uMin + i * uStep;
-            for (let j = 0; j <= this.numV; j++) {
-                let v = this.vMin + j * vStep;
-                
-                // Позиція вершини
-                let point = this.SurfacePoint(u, v);
-                vertices.push(...point);
-                
-                // Текстурні координати (нормалізовані параметри u,v)
-                let s = i / this.numU;
-                let t = j / this.numV;
-                texCoords.push(s, t);
-                
-                // Обчислення часткових похідних (тангенти і бітангенти в об'єктному просторі)
-                let dPdu = this.SurfaceDerivativeU(u, v);
-                let dPdv = this.SurfaceDerivativeV(u, v);
-                
-                // Нормаль поверхні
-                let normal = m4.cross(dPdu, dPdv);
-                m4.normalize(normal, normal);
-                normals.push(...normal);
-                
-                // Variant 23: Prioritize tangent в Гранд-Шмітт нормалізації
-                // T' = T 
-                let T = [...dPdu];
-                m4.normalize(T, T);
-                
-                // B' = N × T'
-                let B = m4.cross(normal, T);
-                m4.normalize(B, B);
-                
-                // N' = T' × B' 
-                let N = m4.cross(T, B);
-                m4.normalize(N, N);
-                
-                tangents.push(...T);
-                bitangents.push(...B);
-                
-                // Оновлення нормалі
-                normals[normals.length - 3] = N[0];
-                normals[normals.length - 2] = N[1];
-                normals[normals.length - 1] = N[2];
-            }
+    let vertices = [];
+    let normals = [];
+    let texCoords = [];
+    let tangents = [];
+    let bitangents = [];
+    let indices = [];
+    
+    let uStep = (this.uMax - this.uMin) / this.numU;
+    let vStep = (this.vMax - this.vMin) / this.numV;
+    
+    for (let i = 0; i <= this.numU; i++) {
+        let u = this.uMin + i * uStep;
+        for (let j = 0; j <= this.numV; j++) {
+            let v = this.vMin + j * vStep;
+            
+            // Позиція вершини
+            let point = this.SurfacePoint(u, v);
+            vertices.push(...point);
+            
+            // Текстурні координати
+            let s = i / this.numU;
+            let t = j / this.numV;
+            texCoords.push(s, t);
+            
+            // Обчислення геометричних похідних
+            let dPdu = this.SurfaceDerivativeU(u, v);
+            let dPdv = this.SurfaceDerivativeV(u, v);
+            
+            // Тангентаголовний вектор. Фіксуємо напрямок.
+            let T = [...dPdu];
+            m4.normalize(T, T);
+            
+            // Початкова нормаль з векторного добутку похідних
+            let rawN = m4.cross(dPdu, dPdv);
+            m4.normalize(rawN, rawN);
+            
+            // Формула: N' = normalize(N - (T · N) * T)
+            // Це робить нормаль строго перпендикулярною до нашої пріоритетної тангенти
+            let dotTN = T[0] * rawN[0] + T[1] * rawN[1] + T[2] * rawN[2];
+            let N = [
+                rawN[0] - dotTN * T[0],
+                rawN[1] - dotTN * T[1],
+                rawN[2] - dotTN * T[2]
+            ];
+            m4.normalize(N, N);
+            
+            // B = N x T
+            let B = m4.cross(N, T);
+            m4.normalize(B, B);
+            
+            normals.push(...N);
+            tangents.push(...T);
+            bitangents.push(...B);
         }
+    }
 
-        let cols = this.numV + 1;
-        for (let i = 0; i < this.numU; i++) {
-            for (let j = 0; j < this.numV; j++) {
-                let i1 = i * cols + j;
-                let i2 = i1 + cols;
-                let i3 = i1 + 1;
-                let i4 = i2 + 1;
-                
-                indices.push(i1, i2, i3); 
-                indices.push(i3, i2, i4);
-            }
+
+    let cols = this.numV + 1;
+    for (let i = 0; i < this.numU; i++) {
+        for (let j = 0; j < this.numV; j++) {
+            let i1 = i * cols + j;
+            let i2 = i1 + cols;
+            let i3 = i1 + 1;
+            let i4 = i2 + 1;
+            
+            indices.push(i1, i2, i3); 
+            indices.push(i3, i2, i4);
         }
-        this.nFaces = indices.length;
-        
-        gl.bindBuffer(gl.ARRAY_BUFFER, this.iVertexBuffer);
-        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
-        
-        gl.bindBuffer(gl.ARRAY_BUFFER, this.iNormalBuffer);
-        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(normals), gl.STATIC_DRAW);
-        
-        gl.bindBuffer(gl.ARRAY_BUFFER, this.iTexCoordBuffer);
-        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(texCoords), gl.STATIC_DRAW);
-        
-        gl.bindBuffer(gl.ARRAY_BUFFER, this.iTangentBuffer);
-        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(tangents), gl.STATIC_DRAW);
-        
-        gl.bindBuffer(gl.ARRAY_BUFFER, this.iBitangentBuffer);
-        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(bitangents), gl.STATIC_DRAW);
-        
-        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.iIndexBuffer);
-        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indices), gl.STATIC_DRAW);
-    };
+    }
+    this.nFaces = indices.length;
+    
+    // Передача даних у буфери WebGL
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.iVertexBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
+    
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.iNormalBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(normals), gl.STATIC_DRAW);
+    
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.iTexCoordBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(texCoords), gl.STATIC_DRAW);
+    
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.iTangentBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(tangents), gl.STATIC_DRAW);
+    
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.iBitangentBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(bitangents), gl.STATIC_DRAW);
+    
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.iIndexBuffer);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indices), gl.STATIC_DRAW);
+};
 
     this.initBuffers = function() {
         this.GenerateSurfaceAndNormals();

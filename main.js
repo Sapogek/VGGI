@@ -146,9 +146,9 @@ function initGL() {
     surface.initBuffers();
 
     // Завнтаження текстур
-    diffuseTexture = loadTexture('texturess/diffuse.jpg');
-    specularTexture = loadTexture('texturess/specular.jpg');
-    normalTexture = loadTexture('texturess/normal.jpg');
+    diffuseTexture = loadTexture('textures/diffuse.jpg');
+    specularTexture = loadTexture('textures/specular.jpg');
+    normalTexture = loadTexture('textures/normal.jpg');
 
     gl.enable(gl.DEPTH_TEST); 
 }
